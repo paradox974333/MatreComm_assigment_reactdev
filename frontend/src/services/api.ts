@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = 'https://matrecomm-assigment-reactdev.onrender.com';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

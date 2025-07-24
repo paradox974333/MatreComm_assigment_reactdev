@@ -22,7 +22,7 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [editingReview, setEditingReview] = useState<Review | null>(null);
   const [error, setError] = useState('');
-  const [renderError, setRenderError] = useState<string | null>(null); // For error boundary
+  const [renderError, setRenderError] = useState<string | null>(null); 
   const { user } = useAuth();
 
   const fetchBookDetails = async () => {
@@ -31,7 +31,8 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
     try {
       const response = await booksApi.getById(book?._id ?? '');
       setReviews(response?.reviews ?? []);
-      setAverageRating(response?.averageRating ?? 0);
+      // FIX: The average rating is nested inside the 'book' object in the API response.
+      setAverageRating(response?.book?.averageRating ?? 0);
     } catch (err) {
       setError('Failed to load book details');
     } finally {

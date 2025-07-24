@@ -62,6 +62,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
         toast.success('Review submitted successfully!');
       }
       onSubmitted();
+      window.location.reload(); // Force a full page reload after successful submission
     } catch (err) {
       if (err instanceof ApiError) {
         const message = err.status === 400 && !isEditing

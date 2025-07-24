@@ -17,7 +17,6 @@ interface BookDetailProps {
 
 export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAdded }) => {
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [averageRating, setAverageRating] = useState(book.averageRating); // Local state for average rating
   const [loading, setLoading] = useState(true);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [editingReview, setEditingReview] = useState<Review | null>(null); // State to hold the review being edited
@@ -30,7 +29,6 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
     try {
       const response = await booksApi.getById(book._id);
       setReviews(response.reviews);
-      setAverageRating(response.averageRating); // Update local average rating
     } catch (err) {
       setError('Failed to load book details');
     } finally {
@@ -47,7 +45,7 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
     setShowReviewForm(false);
     setEditingReview(null);
     onReviewAdded(); // Notify parent to refresh book list (for average rating)
-    fetchBookDetails(); // Also refresh current reviews and average rating
+    fetchBookDetails(); // Also refresh current reviews
   };
 
   const handleEditClick = (review: Review) => {
@@ -69,7 +67,7 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
       await reviewsApi.delete(reviewId);
       toast.success('Review deleted successfully!');
       onReviewAdded(); // Refresh book list
-      fetchBookDetails(); // Refresh current reviews and average rating
+      fetchBookDetails(); // Refresh current reviews
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to delete review.';
       toast.error(message);
@@ -110,9 +108,9 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
             </h1>
             <p className="text-2xl text-gray-600 mb-6 font-semibold">{book.author}</p>
             <div className="flex items-center space-x-6 mb-6">
-              <StarRating rating={averageRating} size="lg" />
+              <StarRating rating={book.averageRating} size="lg" />
               <span className="text-xl font-bold text-gray-800 bg-gray-100 px-4 py-2 rounded-full">
-                {averageRating.toFixed(1)} ({reviews.length} reviews)
+                {book.averageRating.toFixed(1)} ({reviews.length} reviews)
               </span>
             </div>
           </div>
@@ -167,7 +165,7 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
                 <CardContent className="p-8">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3 mb-2">
-                      <div className="p-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full"><span className="text-white font-bold text-sm">{review.user?.username?.charAt(0).toUpperCase() || 'A'}</span></div>
+                      <div className="p-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full"><span className="text-white font-bold text-sm">{review.user?.username.charAt(0).toUpperCase()}</span></div>
                       <div>
                         <h4 className="font-bold text-gray-900 text-lg">{review.user?.username || 'Anonymous'}</h4>
                         <p className="text-gray-500 font-medium text-sm">{new Date(review.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>

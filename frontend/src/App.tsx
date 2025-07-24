@@ -35,12 +35,14 @@ const AppContent: React.FC = () => {
   const handleBookAdded = () => {
     setRefreshTrigger(prev => prev + 1);
   };
-   const handleReviewAdded = () => {
+
+  const handleReviewAdded = () => {
     // 1. Go back to the main book list view
     setSelectedBook(null); 
     
     // 2. Tell the BookGrid to refetch its data to get the new average rating
     setRefreshTrigger(prev => prev + 1);
+    window.location.reload(); // Force full page reload after review action to ensure updates
   };
 
   if (loading) {
@@ -105,9 +107,9 @@ const AppContent: React.FC = () => {
         {selectedBook ? (
           <BookDetail
             book={selectedBook}
-            onBack={() => setSelectedBook(null)} onReviewAdded={function (): void {
-              throw new Error('Function not implemented.');
-            } }          />
+            onBack={() => setSelectedBook(null)}
+            onReviewAdded={handleReviewAdded} // Fixed: Pass the actual handleReviewAdded function
+          />
         ) : currentView === 'admin' && user?.isAdmin ? (
           <AdminDashboard />
         ) : (

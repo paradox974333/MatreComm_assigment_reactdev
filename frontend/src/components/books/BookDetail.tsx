@@ -1,63 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Plus, Star, MessageCircle, Edit, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; // Import toast for delete notifications
 import { Book, Review } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { booksApi, reviewsApi, ApiError } from '../../services/api';
+import { booksApi, reviewsApi, ApiError } from '../../services/api'; // Import reviewsApi
 import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
 import { StarRating } from '../ui/StarRating';
 import { ReviewForm } from './ReviewForm';
 
-// Define a type for the component's local state to hold all book details
-interface BookDetailsState {
-  book: Book;
-  reviews: Review[];
-}
-
 interface BookDetailProps {
-  bookId: string; // We'll use the ID to fetch the initial data
+  book: Book;
   onBack: () => void;
-  onDataChange: () => void; // A more generic name for the callback
+  onReviewAdded: () => void; // This is now used for create, update, and delete
 }
 
-export const BookDetail: React.FC<BookDetailProps> = ({ bookId, onBack, onDataChange }) => {
-  // --- KEY CHANGE 1: Use a single state for all book-related data ---
-  const [bookDetails, setBookDetails] = useState<BookDetailsState | null>(null);
-
+export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAdded }) => {
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReviewForm, setShowReviewForm] = useState(false);
-  const [editingReview, setEditingReview] = useState<Review | null>(null);
+  const [editingReview, setEditingReview] = useState<Review | null>(null); // State to hold the review being edited
   const [error, setError] = useState('');
   const { user } = useAuth();
 
-  // --- KEY CHANGE 2: Unified data fetch function ---
-  // This function now fetches EVERYTHING for the detail view and updates the state.
   const fetchBookDetails = async () => {
+    setLoading(true);
+    setError('');
     try {
-      // Don't set loading to true on refetches, to avoid screen flicker.
-      // setLoading(true); 
-      const response = await booksApi.getById(bookId);
-      setBookDetails(response); // Store both book and reviews
+      const response = await booksApi.getById(book._id);
+      setReviews(response.reviews);
     } catch (err) {
       setError('Failed to load book details');
-      toast.error('Failed to load book details.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    setLoading(true); // Set loading only on the initial mount
     fetchBookDetails();
-  }, [bookId]); // Re-run only when the book ID changes
+  }, [book._id]);
 
-  // --- KEY CHANGE 3: Trigger a re-fetch after any data mutation ---
-  const handleActionSuccess = () => {
+  // This handler is now used for create and update
+  const handleReviewSubmitted = () => {
     setShowReviewForm(false);
     setEditingReview(null);
-    onDataChange(); // Notify parent to refresh its list (updates average rating on the main page)
-    fetchBookDetails(); // <<-- THIS IS THE MAGIC: Refreshes the current component's data
+    onReviewAdded(); // Notify parent to refresh book list (for average rating)
+    fetchBookDetails(); // Also refresh current reviews
+  };
+
+  const handleEditClick = (review: Review) => {
+    setEditingReview(review);
+    setShowReviewForm(true);
+  };
+
+  const handleCancelForm = () => {
+    setShowReviewForm(false);
+    setEditingReview(null);
   };
 
   const handleDeleteReview = async (reviewId: string) => {
@@ -68,36 +66,26 @@ export const BookDetail: React.FC<BookDetailProps> = ({ bookId, onBack, onDataCh
     try {
       await reviewsApi.delete(reviewId);
       toast.success('Review deleted successfully!');
-      handleActionSuccess(); // Call the unified success handler
+      onReviewAdded(); // Refresh book list
+      fetchBookDetails(); // Refresh current reviews
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to delete review.';
       toast.error(message);
     }
   };
 
-  const handleEditClick = (review: Review) => {
-    setEditingReview(review);
-    setShowReviewForm(true);
-  };
-  
-  const handleCancelForm = () => {
-    setShowReviewForm(false);
-    setEditingReview(null);
-  };
+  const userHasReviewed = reviews.some(review => review.user?._id === user?._id);
+  const canShowCreateForm = user && !userHasReviewed && !showReviewForm;
 
-  // --- Render logic updated to handle loading and error states first ---
   if (loading) {
+    // ... loading spinner code (unchanged)
     return <div className="flex items-center justify-center min-h-[400px]"><div className="relative"><div className="animate-spin rounded-full h-16 w-16 border-4 border-amber-200"></div><div className="animate-spin rounded-full h-16 w-16 border-4 border-amber-500 border-t-transparent absolute top-0"></div></div></div>;
   }
 
-  if (error || !bookDetails) {
-    return <div className="max-w-4xl mx-auto"><Button variant="ghost" onClick={onBack} className="mb-8 rounded-full"><ArrowLeft className="h-4 w-4 mr-2" />Back to Books</Button><div className="text-center py-16"><div className="bg-red-50 border border-red-200 rounded-2xl p-8 max-w-md mx-auto"><p className="text-red-600 font-semibold">{error || 'Book could not be found.'}</p></div></div></div>;
+  if (error) {
+    // ... error display code (unchanged)
+    return <div className="max-w-4xl mx-auto"><Button variant="ghost" onClick={onBack} className="mb-8 rounded-full"><ArrowLeft className="h-4 w-4 mr-2" />Back to Books</Button><div className="text-center py-16"><div className="bg-red-50 border border-red-200 rounded-2xl p-8 max-w-md mx-auto"><p className="text-red-600 font-semibold">{error}</p></div></div></div>;
   }
-
-  // --- KEY CHANGE 4: All rendering now uses the `bookDetails` state ---
-  const { book, reviews } = bookDetails;
-  const userHasReviewed = reviews.some(review => review.user?._id === user?._id);
-  const canShowCreateForm = user && !userHasReviewed && !showReviewForm;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -126,26 +114,39 @@ export const BookDetail: React.FC<BookDetailProps> = ({ bookId, onBack, onDataCh
               </span>
             </div>
           </div>
+
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Description</h2>
             <p className="text-gray-700 leading-relaxed text-lg">{book.description}</p>
           </div>
+
+          {/* Show "Write a Review" button */}
           {canShowCreateForm && (
             <Button onClick={() => setShowReviewForm(true)} className="flex items-center rounded-full px-8">
               <Plus className="h-4 w-4 mr-2" /> Write a Review
             </Button>
           )}
+
+          {/* Show "You have reviewed" message */}
           {user && userHasReviewed && !showReviewForm && (
-            <div className="bg-green-50 border border-green-200 rounded-2xl p-6"><div className="flex items-center"><div className="p-2 bg-green-100 rounded-full mr-3"><Star className="h-5 w-5 text-green-600 fill-current" /></div><p className="text-green-700 font-semibold">✓ You have already reviewed this book</p></div></div>
+            <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
+              <div className="flex items-center"><div className="p-2 bg-green-100 rounded-full mr-3"><Star className="h-5 w-5 text-green-600 fill-current" /></div><p className="text-green-700 font-semibold">✓ You have already reviewed this book</p></div>
+            </div>
           )}
+          
+          {/* Show "Please sign in" message */}
           {!user && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6"><div className="flex items-center"><div className="p-2 bg-amber-100 rounded-full mr-3"><MessageCircle className="h-5 w-5 text-amber-600" /></div><p className="text-amber-700 font-semibold">Please sign in to write a review</p></div></div>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+              <div className="flex items-center"><div className="p-2 bg-amber-100 rounded-full mr-3"><MessageCircle className="h-5 w-5 text-amber-600" /></div><p className="text-amber-700 font-semibold">Please sign in to write a review</p></div>
+            </div>
           )}
+          
+          {/* Render the form for both creating and editing */}
           {showReviewForm && (
             <ReviewForm
               bookId={book._id}
               reviewToEdit={editingReview || undefined}
-              onSubmitted={handleActionSuccess} // Use the new success handler
+              onSubmitted={handleReviewSubmitted}
               onCancel={handleCancelForm}
             />
           )}
@@ -154,6 +155,7 @@ export const BookDetail: React.FC<BookDetailProps> = ({ bookId, onBack, onDataCh
 
       <div className="space-y-8">
         <h2 className="text-3xl font-bold text-gray-900"><div className="flex items-center"><MessageCircle className="h-8 w-8 mr-3 text-amber-600" />Reviews ({reviews.length})</div></h2>
+        
         {reviews.length === 0 ? (
           <Card><CardContent className="py-20 text-center"><div className="space-y-4"><div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center"><MessageCircle className="h-8 w-8 text-gray-400" /></div><div><p className="text-gray-600 text-xl font-semibold mb-2">No reviews yet</p><p className="text-gray-500 font-medium">Be the first to share your thoughts about this book!</p></div></div></CardContent></Card>
         ) : (
@@ -164,7 +166,10 @@ export const BookDetail: React.FC<BookDetailProps> = ({ bookId, onBack, onDataCh
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3 mb-2">
                       <div className="p-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full"><span className="text-white font-bold text-sm">{review.user?.username.charAt(0).toUpperCase()}</span></div>
-                      <div><h4 className="font-bold text-gray-900 text-lg">{review.user?.username || 'Anonymous'}</h4><p className="text-gray-500 font-medium text-sm">{new Date(review.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p></div>
+                      <div>
+                        <h4 className="font-bold text-gray-900 text-lg">{review.user?.username || 'Anonymous'}</h4>
+                        <p className="text-gray-500 font-medium text-sm">{new Date(review.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                      </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       <StarRating rating={review.rating} size="sm" />
@@ -172,10 +177,16 @@ export const BookDetail: React.FC<BookDetailProps> = ({ bookId, onBack, onDataCh
                     </div>
                   </div>
                   <p className="text-gray-700 leading-relaxed text-lg pl-14">{review.reviewText}</p>
+                  
+                  {/* Edit and Delete Buttons */}
                   {user?._id === review.user?._id && (
                     <div className="flex items-center space-x-2 mt-4 pl-14">
-                      <Button variant="outline" size="sm" onClick={() => handleEditClick(review)}><Edit className="h-4 w-4 mr-2" /> Edit</Button>
-                      <Button variant="destructive" size="sm" onClick={() => handleDeleteReview(review._id)}><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                      <Button variant="outline" size="sm" onClick={() => handleEditClick(review)}>
+                        <Edit className="h-4 w-4 mr-2" /> Edit
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => handleDeleteReview(review._id)}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </Button>
                     </div>
                   )}
                 </CardContent>

@@ -50,6 +50,7 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
     setEditingReview(null);
     onReviewAdded();
     fetchBookDetails();
+    window.location.reload(); // Force full page reload after submission
   };
 
   const handleEditClick = (review: Review) => {
@@ -72,6 +73,7 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
       toast.success('Review deleted successfully!');
       onReviewAdded();
       fetchBookDetails();
+      window.location.reload(); // Force full page reload after deletion
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to delete review.';
       toast.error(message);

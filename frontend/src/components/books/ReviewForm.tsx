@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
-import { Plus } from 'lucide-react'; // <-- 1. ADD MISSING IMPORT
-import toast from 'react-hot-toast'; // <-- 2. IMPORT TOAST
-import { booksApi, ApiError } from '../../services/api';
+import React, { useState, useEffect } from 'react';
+import { Edit, Plus } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { reviewsApi, ApiError } from '../../services/api'; // Use the new reviewsApi
+import { Review } from '../../types'; // Import the Review type
 import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
 import { StarRating } from '../ui/StarRating';
 
 interface ReviewFormProps {
   bookId: string;
+  reviewToEdit?: Review; // Optional prop for editing an existing review
   onSubmitted: () => void;
   onCancel: () => void;
 }
 
 export const ReviewForm: React.FC<ReviewFormProps> = ({
   bookId,
+  reviewToEdit,
   onSubmitted,
   onCancel,
 }) => {
@@ -21,6 +24,16 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
   const [reviewText, setReviewText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const isEditing = !!reviewToEdit;
+
+  // Pre-fill the form if we are editing
+  useEffect(() => {
+    if (isEditing) {
+      setRating(reviewToEdit.rating);
+      setReviewText(reviewToEdit.reviewText);
+    }
+  }, [reviewToEdit, isEditing]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,19 +52,23 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
     setError('');
 
     try {
-      await booksApi.addReview(bookId, rating, reviewText);
-      
-      // 3. USE THE TOAST LIBRARY FOR NOTIFICATIONS
-      toast.success('Review submitted successfully!');
-      
+      if (isEditing) {
+        // Call the update API if editing
+        await reviewsApi.update(reviewToEdit._id, { rating, reviewText });
+        toast.success('Review updated successfully!');
+      } else {
+        // Call the create API if creating a new review
+        await reviewsApi.create(bookId, rating, reviewText);
+        toast.success('Review submitted successfully!');
+      }
       onSubmitted();
     } catch (err) {
       if (err instanceof ApiError) {
-        const message = err.status === 400
+        const message = err.status === 400 && !isEditing
           ? 'You have already reviewed this book.'
           : err.message;
         setError(message);
-        toast.error(message); // Also show an error toast
+        toast.error(message);
       } else {
         const message = 'An unknown error occurred.';
         setError(message);
@@ -67,9 +84,13 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
       <CardContent className="p-8">
         <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
           <div className="p-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl mr-3">
-            <Plus className="h-6 w-6 text-white" />
+            {isEditing ? (
+              <Edit className="h-6 w-6 text-white" />
+            ) : (
+              <Plus className="h-6 w-6 text-white" />
+            )}
           </div>
-          Share Your Thoughts
+          {isEditing ? 'Edit Your Review' : 'Share Your Thoughts'}
         </h3>
         
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -113,7 +134,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
 
           <div className="flex space-x-4 pt-4">
             <Button type="submit" disabled={loading} className="px-8">
-              {loading ? 'Submitting...' : 'Submit Review'}
+              {loading ? (isEditing ? 'Updating...' : 'Submitting...') : (isEditing ? 'Update Review' : 'Submit Review')}
             </Button>
             <Button type="button" variant="secondary" onClick={onCancel} className="px-8">
               Cancel

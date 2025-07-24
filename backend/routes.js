@@ -10,6 +10,14 @@ const cloudinary = require('./cloudinaryConfig');
 
 const router = express.Router();
 
+// Helper function to recalculate and update a book's average rating
+const updateAverageRating = async (bookId) => {
+  if (!bookId) return;
+  const reviews = await Review.find({ book: bookId });
+  const avg = reviews.length > 0 ? reviews.reduce((a, b) => a + b.rating, 0) / reviews.length : 0;
+  await Book.findByIdAndUpdate(bookId, { averageRating: avg });
+};
+
 router.post('/register', async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
@@ -93,22 +101,93 @@ router.post('/books/:id/review', auth, async (req, res, next) => {
     const { rating, reviewText } = req.body;
     const bookId = req.params.id;
 
-    const existing = await Review.findOne({ user: req.user._id, book: bookId });
-    if (existing) {
-      return res.status(400).json({ message: 'You have already reviewed this book' });
+    if (!rating || !reviewText) {
+      return res.status(400).json({ message: 'Rating and review text are required.' });
+    }
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5.' });
     }
 
-    await Review.create({ user: req.user._id, book: bookId, rating, reviewText });
+    const existing = await Review.findOne({ user: req.user._id, book: bookId });
+    if (existing) {
+      return res.status(400).json({ message: 'You have already reviewed this book.' });
+    }
 
-    const reviews = await Review.find({ book: bookId });
-    const avg = reviews.length > 0 ? reviews.reduce((a, b) => a + b.rating, 0) / reviews.length : 0;
-    await Book.findByIdAndUpdate(bookId, { averageRating: avg });
+    const review = await Review.create({ user: req.user._id, book: bookId, rating, reviewText });
 
-    res.status(201).json({ message: 'Review added successfully' });
+    await updateAverageRating(bookId); // Use the helper function
+
+    res.status(201).json({ message: 'Review added successfully', review });
   } catch (err) {
     next(err);
   }
 });
+
+// Endpoint to update a user's review
+router.put('/reviews/:id', auth, async (req, res, next) => {
+  try {
+    const { rating, reviewText } = req.body;
+    const reviewId = req.params.id;
+
+    if (rating === undefined && reviewText === undefined) {
+      return res.status(400).json({ message: 'At least one of rating or reviewText is required for update.' });
+    }
+    if (rating !== undefined && (rating < 1 || rating > 5)) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5.' });
+    }
+
+    const review = await Review.findById(reviewId);
+    if (!review) {
+      return res.status(404).json({ message: 'Review not found.' });
+    }
+
+    // Ensure the authenticated user is the owner of the review
+    if (review.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'You are not authorized to update this review.' });
+    }
+
+    if (rating !== undefined) {
+      review.rating = rating;
+    }
+    if (reviewText !== undefined) {
+      review.reviewText = reviewText;
+    }
+    await review.save();
+
+    await updateAverageRating(review.book); // Recalculate average rating for the associated book
+
+    res.json({ message: 'Review updated successfully', review });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Endpoint to delete a user's review
+router.delete('/reviews/:id', auth, async (req, res, next) => {
+  try {
+    const reviewId = req.params.id;
+    const review = await Review.findById(reviewId);
+
+    if (!review) {
+      return res.status(404).json({ message: 'Review not found.' });
+    }
+
+    // Ensure the authenticated user is the owner of the review or an admin
+    if (review.user.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+      return res.status(403).json({ message: 'You are not authorized to delete this review.' });
+    }
+
+    const bookId = review.book; // Get book ID before deleting the review
+    await review.deleteOne(); // Delete the review document
+
+    await updateAverageRating(bookId); // Recalculate average rating for the associated book
+
+    res.json({ message: 'Review deleted successfully.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 router.get('/admin/stats', auth, admin, async (req, res, next) => {
   try {

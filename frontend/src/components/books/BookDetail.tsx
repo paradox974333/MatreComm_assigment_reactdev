@@ -1,29 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Star, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Star, MessageCircle, Edit, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast'; // Import toast for delete notifications
 import { Book, Review } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { booksApi } from '../../services/api';
+import { booksApi, reviewsApi, ApiError } from '../../services/api'; // Import reviewsApi
 import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
 import { StarRating } from '../ui/StarRating';
 import { ReviewForm } from './ReviewForm';
 
-// 1. ADD onReviewAdded to props
 interface BookDetailProps {
   book: Book;
   onBack: () => void;
-  onReviewAdded: () => void;
+  onReviewAdded: () => void; // This is now used for create, update, and delete
 }
 
 export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAdded }) => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [editingReview, setEditingReview] = useState<Review | null>(null); // State to hold the review being edited
   const [error, setError] = useState('');
   const { user } = useAuth();
 
   const fetchBookDetails = async () => {
-    // Reset state for when a new book is selected
     setLoading(true);
     setError('');
     try {
@@ -40,43 +40,51 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
     fetchBookDetails();
   }, [book._id]);
 
-  // 2. UPDATE handleReviewSubmitted to use the callback
+  // This handler is now used for create and update
   const handleReviewSubmitted = () => {
     setShowReviewForm(false);
-    // Notify the parent component to refresh its data
-    onReviewAdded();
+    setEditingReview(null);
+    onReviewAdded(); // Notify parent to refresh book list (for average rating)
+    fetchBookDetails(); // Also refresh current reviews
   };
 
-  // 3. Make this check more robust with optional chaining
+  const handleEditClick = (review: Review) => {
+    setEditingReview(review);
+    setShowReviewForm(true);
+  };
+
+  const handleCancelForm = () => {
+    setShowReviewForm(false);
+    setEditingReview(null);
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!window.confirm('Are you sure you want to delete this review? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await reviewsApi.delete(reviewId);
+      toast.success('Review deleted successfully!');
+      onReviewAdded(); // Refresh book list
+      fetchBookDetails(); // Refresh current reviews
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to delete review.';
+      toast.error(message);
+    }
+  };
+
   const userHasReviewed = reviews.some(review => review.user?._id === user?._id);
+  const canShowCreateForm = user && !userHasReviewed && !showReviewForm;
 
   if (loading) {
     // ... loading spinner code (unchanged)
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="relative">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-amber-200"></div>
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-amber-500 border-t-transparent absolute top-0"></div>
-        </div>
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-[400px]"><div className="relative"><div className="animate-spin rounded-full h-16 w-16 border-4 border-amber-200"></div><div className="animate-spin rounded-full h-16 w-16 border-4 border-amber-500 border-t-transparent absolute top-0"></div></div></div>;
   }
 
   if (error) {
     // ... error display code (unchanged)
-    return (
-      <div className="max-w-4xl mx-auto">
-        <Button variant="ghost" onClick={onBack} className="mb-8 rounded-full">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Books
-        </Button>
-        <div className="text-center py-16">
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-8 max-w-md mx-auto">
-            <p className="text-red-600 font-semibold">{error}</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="max-w-4xl mx-auto"><Button variant="ghost" onClick={onBack} className="mb-8 rounded-full"><ArrowLeft className="h-4 w-4 mr-2" />Back to Books</Button><div className="text-center py-16"><div className="bg-red-50 border border-red-200 rounded-2xl p-8 max-w-md mx-auto"><p className="text-red-600 font-semibold">{error}</p></div></div></div>;
   }
 
   return (
@@ -112,106 +120,75 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onReviewAd
             <p className="text-gray-700 leading-relaxed text-lg">{book.description}</p>
           </div>
 
-          {user ? (
-            !userHasReviewed ? (
-              <div className="space-y-4">
-                <Button onClick={() => setShowReviewForm(!showReviewForm)} className="flex items-center rounded-full px-8">
-                  <Plus className="h-4 w-4 mr-2" />
-                  {showReviewForm ? 'Cancel Review' : 'Write a Review'}
-                </Button>
-              </div>
-            ) : (
-              <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-full mr-3">
-                    <Star className="h-5 w-5 text-green-600 fill-current" />
-                  </div>
-                  <p className="text-green-700 font-semibold">✓ You have already reviewed this book</p>
-                </div>
-              </div>
-            )
-          ) : (
-            <div>
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-amber-100 rounded-full mr-3">
-                    <MessageCircle className="h-5 w-5 text-amber-600" />
-                  </div>
-                  <p className="text-amber-700 font-semibold">Please sign in to write a review</p>
-                </div>
-              </div>
-            </div>
+          {/* Show "Write a Review" button */}
+          {canShowCreateForm && (
+            <Button onClick={() => setShowReviewForm(true)} className="flex items-center rounded-full px-8">
+              <Plus className="h-4 w-4 mr-2" /> Write a Review
+            </Button>
           )}
 
+          {/* Show "You have reviewed" message */}
+          {user && userHasReviewed && !showReviewForm && (
+            <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
+              <div className="flex items-center"><div className="p-2 bg-green-100 rounded-full mr-3"><Star className="h-5 w-5 text-green-600 fill-current" /></div><p className="text-green-700 font-semibold">✓ You have already reviewed this book</p></div>
+            </div>
+          )}
+          
+          {/* Show "Please sign in" message */}
+          {!user && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+              <div className="flex items-center"><div className="p-2 bg-amber-100 rounded-full mr-3"><MessageCircle className="h-5 w-5 text-amber-600" /></div><p className="text-amber-700 font-semibold">Please sign in to write a review</p></div>
+            </div>
+          )}
+          
+          {/* Render the form for both creating and editing */}
           {showReviewForm && (
             <ReviewForm
               bookId={book._id}
+              reviewToEdit={editingReview || undefined}
               onSubmitted={handleReviewSubmitted}
-              onCancel={() => setShowReviewForm(false)}
+              onCancel={handleCancelForm}
             />
           )}
         </div>
       </div>
 
       <div className="space-y-8">
-        <h2 className="text-3xl font-bold text-gray-900">
-          <div className="flex items-center">
-            <MessageCircle className="h-8 w-8 mr-3 text-amber-600" />
-            Reviews ({reviews.length})
-          </div>
-        </h2>
-
+        <h2 className="text-3xl font-bold text-gray-900"><div className="flex items-center"><MessageCircle className="h-8 w-8 mr-3 text-amber-600" />Reviews ({reviews.length})</div></h2>
+        
         {reviews.length === 0 ? (
-          // ... no reviews placeholder (unchanged)
-          <Card>
-            <CardContent className="py-20 text-center">
-              <div className="space-y-4">
-                <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
-                  <MessageCircle className="h-8 w-8 text-gray-400" />
-                </div>
-                <div>
-                  <p className="text-gray-600 text-xl font-semibold mb-2">No reviews yet</p>
-                  <p className="text-gray-500 font-medium">Be the first to share your thoughts about this book!</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <Card><CardContent className="py-20 text-center"><div className="space-y-4"><div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center"><MessageCircle className="h-8 w-8 text-gray-400" /></div><div><p className="text-gray-600 text-xl font-semibold mb-2">No reviews yet</p><p className="text-gray-500 font-medium">Be the first to share your thoughts about this book!</p></div></div></CardContent></Card>
         ) : (
           <div className="space-y-6">
             {reviews.map((review) => (
-              // ... review card mapping (unchanged, but robust)
               <Card key={review._id}>
                 <CardContent className="p-8">
                   <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center space-x-3 mb-2">
-                        <div className="p-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
-                          <span className="text-white font-bold text-sm">
-                            {review.user?.username.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-gray-900 text-lg">
-                            {review.user?.username || 'Anonymous'}
-                          </h4>
-                          <p className="text-gray-500 font-medium text-sm">
-                            {new Date(review.createdAt).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
-                          </p>
-                        </div>
+                    <div className="flex items-center space-x-3 mb-2">
+                      <div className="p-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full"><span className="text-white font-bold text-sm">{review.user?.username.charAt(0).toUpperCase()}</span></div>
+                      <div>
+                        <h4 className="font-bold text-gray-900 text-lg">{review.user?.username || 'Anonymous'}</h4>
+                        <p className="text-gray-500 font-medium text-sm">{new Date(review.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       <StarRating rating={review.rating} size="sm" />
-                      <span className="text-sm font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded-full">
-                        {review.rating}
-                      </span>
+                      <span className="text-sm font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded-full">{review.rating}</span>
                     </div>
                   </div>
                   <p className="text-gray-700 leading-relaxed text-lg pl-14">{review.reviewText}</p>
+                  
+                  {/* Edit and Delete Buttons */}
+                  {user?._id === review.user?._id && (
+                    <div className="flex items-center space-x-2 mt-4 pl-14">
+                      <Button variant="outline" size="sm" onClick={() => handleEditClick(review)}>
+                        <Edit className="h-4 w-4 mr-2" /> Edit
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => handleDeleteReview(review._id)}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}

@@ -1,6 +1,6 @@
 
 
-````markdown
+
 # 📚 Book Review Platform
 
 A full-stack MERN application that allows users to discover, rate, and review their favorite books. This platform features a clean, modern UI, secure authentication, a robust review system, and an admin dashboard.

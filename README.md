@@ -150,13 +150,4 @@ Pull requests merged into `main` are automatically deployed to production.
 
 ---
 
-```
 
-Let me know if you want:
-- Screenshot support
-- Dark mode badges
-- `.env.example` template
-- Or to auto-generate GitHub Actions for CI/CD
-
-I'll be happy to assist!
-```

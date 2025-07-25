@@ -10,7 +10,7 @@ A full-stack MERN application that allows users to discover, rate, and review th
 ## 🚀 Live Demo
 
 > 🌐 [Visit the Live Site](https://matre-comm-assigment-reactdev-8bg2.vercel.app/)
-
+> AMIN CREDETIALS TO TEST:admin@gmail.com  pass- admin@123
 ---
 
 ## ✨ Key Features

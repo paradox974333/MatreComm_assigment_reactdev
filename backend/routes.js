@@ -7,6 +7,7 @@ const auth = require('./authMiddleware');
 const admin = require('./adminMiddleware');
 const upload = require('./upload');
 const cloudinary = require('./cloudinaryConfig');
+const { reviewLimiter, registerLimiter } = require('./rateLimiter');
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ const updateAverageRating = async (bookId) => {
   await Book.findByIdAndUpdate(bookId, { averageRating: avg });
 };
 
-router.post('/register', async (req, res, next) => {
+router.post('/register', registerLimiter, async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
     const hash = await bcrypt.hash(password, 10);
@@ -96,7 +97,7 @@ router.get('/books/:id', async (req, res, next) => {
   }
 });
 
-router.post('/books/:id/review', auth, async (req, res, next) => {
+router.post('/books/:id/review', auth, reviewLimiter, async (req, res, next) => {
   try {
     const { rating, reviewText } = req.body;
     const bookId = req.params.id;
